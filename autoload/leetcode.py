@@ -132,6 +132,8 @@ def is_login():
     return session and 'LEETCODE_SESSION' in session.cookies
 
 
+# Hack: LeetCodeにrecaptchaが導入されたため、ブラウザ経由でログインしてセッションを取得するようにした
+# https://github.com/ianding1/leetcode.vim/issues/23
 def signin(username, password):
     global session
     session = requests.Session()
@@ -143,19 +145,18 @@ def signin(username, password):
         _echoerr('cannot open ' + LC_BASE)
         return False
 
-    headers = {'Origin': LC_BASE,
-               'Referer': LC_LOGIN}
-    form = {'csrfmiddlewaretoken': session.cookies['csrftoken'],
-            'login': username,
-            'password': password}
-    log.info('signin request: headers="%s" login="%s"', headers, username)
-    # requests follows the redirect url by default
-    # disable redirection explicitly
-    res = session.post(LC_LOGIN, data=form, headers=headers, allow_redirects=False)
-    log.info('signin response: status="%s" body="%s"', res.status_code, res.text)
-    if res.status_code != 302:
-        _echoerr('password incorrect')
-        return False
+    driver = webdriver.Chrome("chromedriver")
+    driver.get(LC_LOGIN)
+    driver.find_element_by_name("login").send_keys(username)
+    driver.find_element_by_name("password").send_keys(password)
+    try:
+        WebDriverWait(driver, 600).until(
+            EC.presence_of_element_located((By.ID, "home-app"))
+        )
+    finally:
+        leetcode_session = driver.get_cookie("LEETCODE_SESSION")
+        driver.quit()
+    session.cookies.set("LEETCODE_SESSION", leetcode_session["value"])
     return True
 
 
